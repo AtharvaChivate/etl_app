@@ -1,0 +1,219 @@
+/* App.css */
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f5;
+}
+
+.app-header {
+  background: #2c3e50;
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.header-controls {
+  display: flex;
+  gap: 1rem;
+}
+
+.execute-btn {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.execute-btn:hover:not(:disabled) {
+  background: #229954;
+}
+
+.execute-btn:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+}
+
+.execute-btn.executing {
+  background: #f39c12;
+}
+
+.dag-manager-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.dag-manager-btn:hover {
+  background: #2980b9;
+}
+
+.clear-btn {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.clear-btn:hover:not(:disabled) {
+  background: #c0392b;
+}
+
+.clear-btn:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+}
+
+.app-content {
+  flex: 1;
+  display: flex;
+  position: relative;
+}
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+  background: white;
+}
+
+/* React Flow customizations */
+.react-flow {
+  background: #fafafa;
+}
+
+.react-flow__node {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 2px solid #e1e8ed;
+  background: white;
+  min-width: 200px;
+}
+
+.react-flow__node.selected {
+  border-color: #3498db;
+  box-shadow: 0 2px 12px rgba(52,152,219,0.3);
+}
+
+.react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #555;
+}
+
+.react-flow__handle-top {
+  top: -6px;
+}
+
+.react-flow__handle-bottom {
+  bottom: -6px;
+}
+
+.react-flow__handle-left {
+  left: -6px;
+}
+
+.react-flow__handle-right {
+  right: -6px;
+}
+
+.execution-result {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 400px;
+  max-height: 300px;
+  overflow: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+}
+
+.execution-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.execution-result h3 {
+  margin: 0;
+  color: #27ae60;
+}
+
+.close-result-btn {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-result-btn:hover {
+  background: #c0392b;
+  transform: scale(1.1);
+}
+
+.execution-result pre {
+  background: #f8f9fa;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+}
+
+/* Edge delete button styles */
+.edgebutton {
+  transition: all 0.2s ease;
+}
+
+.edgebutton:hover {
+  transform: scale(1.1) !important;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.3) !important;
+}
+
+/* Custom edge styles */
+.react-flow__edge.react-flow__edge-deletable {
+  cursor: pointer;
+}
+
+.react-flow__edge.react-flow__edge-deletable:hover {
+  stroke-width: 3;
+  stroke: #ff6b6b;
+}
+
+/* Edge label styles */
+.react-flow__edge-label {
+  pointer-events: all;
+}
