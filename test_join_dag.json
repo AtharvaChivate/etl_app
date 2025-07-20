@@ -1,0 +1,87 @@
+{
+  "nodes": [
+    {
+      "id": "csvSource-1",
+      "type": "csvSource",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "US Employees",
+        "fileName": "employees.csv",
+        "filePath": "uploads/1753045207774_employees.csv",
+        "configured": true
+      }
+    },
+    {
+      "id": "csvSource-2", 
+      "type": "csvSource",
+      "position": { "x": 100, "y": 400 },
+      "data": {
+        "label": "Indian Employees",
+        "fileName": "indian_employees.csv",
+        "filePath": "uploads/1753045224583_indian_employees.csv",
+        "configured": true
+      }
+    },
+    {
+      "id": "filter-1",
+      "type": "filter",
+      "position": { "x": 400, "y": 100 },
+      "data": {
+        "label": "Filter High Salary",
+        "column": "salary",
+        "operator": ">",
+        "value": "75000",
+        "configured": true
+      }
+    },
+    {
+      "id": "join-1",
+      "type": "join",
+      "position": { "x": 700, "y": 250 },
+      "data": {
+        "label": "Department Join",
+        "leftColumn": "department",
+        "rightColumn": "department",
+        "joinType": "inner",
+        "configured": true
+      }
+    },
+    {
+      "id": "csvOutput-1",
+      "type": "csvOutput",
+      "position": { "x": 1000, "y": 250 },
+      "data": {
+        "label": "Join Results",
+        "filePath": "D:\\My Learning\\ETL_Framework\\etl_app\\data-pipeline-builder\\output\\test_join_results.csv"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "csvSource-1",
+      "target": "filter-1",
+      "type": "simple"
+    },
+    {
+      "id": "e2", 
+      "source": "filter-1",
+      "target": "join-1",
+      "targetHandle": "left",
+      "type": "simple"
+    },
+    {
+      "id": "e3",
+      "source": "csvSource-2", 
+      "target": "join-1",
+      "targetHandle": "right",
+      "type": "simple"
+    },
+    {
+      "id": "e4",
+      "source": "join-1",
+      "target": "csvOutput-1",
+      "type": "simple"
+    }
+  ]
+}

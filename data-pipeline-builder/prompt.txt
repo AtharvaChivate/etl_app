@@ -1,0 +1,215 @@
+# ETL Framework - Complete Project Generation Prompt
+
+## Project Overview
+Create a full-stack Visual Data Transformation Builder (ETL Framework) with a React frontend and Java Spring Boot backend. This is a modern drag-and-drop pipeline builder that supports universal database connectivity, interactive UI components, and comprehensive data transformations.
+
+## Technology Stack
+
+### Frontend (React)
+- **React 18.2.0** with functional components and hooks
+- **ReactFlow 11.10.1** for drag-and-drop pipeline canvas
+- **Material-UI 5.14.0** for enhanced UI components
+- **Axios 1.6.0** for API communication
+- **React Dropzone 14.2.3** for file upload functionality
+- **CSS3** with custom styling for modern UI
+
+### Backend (Java Spring Boot)
+- **Spring Boot 3.2.0** with embedded Tomcat
+- **Java 17** with Maven build system
+- **Spring Data JPA** for data persistence
+- **Spring Web** for REST API endpoints
+- **Universal Database Support** with comprehensive JDBC drivers:
+  - MySQL (mysql-connector-java 8.0.33)
+  - PostgreSQL (postgresql driver)
+  - SQLite (sqlite-jdbc 3.44.1.0)
+  - SQL Server (mssql-jdbc)
+  - Oracle (ojdbc11)
+  - H2 (for development/testing)
+
+### File Processing & Data Handling
+- **OpenCSV 5.9** for CSV file processing
+- **Apache Commons CSV 1.10.0** for advanced CSV operations
+- **Jackson** for JSON serialization/deserialization
+- **Commons FileUpload 1.5** for file upload handling
+- **Commons IO 2.11.0** for file operations
+
+
+
+## Core Features Implementation
+
+### 1. Universal Database Connectivity
+- **Single SQL Node Type**: Implement one "SQL Source" node that works with all database types
+- **Connection Testing**: Real-time database connection validation with "Test Connection" button
+- **Auto Table Creation**: Automatic table creation for SQL output with proper data type mapping
+- **Type Detection**: Intelligent data type conversion between CSV and database formats
+
+### 2. Interactive Edge Management
+- **Hover-to-Delete**: Custom edge components with hover functionality to reveal delete buttons
+- **Visual Feedback**: Edge highlighting and transition effects for better user experience
+- **Keyboard Support**: Delete key support for selected edges
+
+### 3. Modern File Upload System
+- **Drag-and-Drop**: React Dropzone integration for intuitive file uploads
+- **Progress Tracking**: Real-time upload progress indicators
+- **File Validation**: CSV format validation and error handling
+
+### 4. Enhanced User Interface
+- **Simplified Sidebar**: Clean component palette with only essential node types
+- **Dismissible Notifications**: Execution result panels with close buttons
+- **Responsive Design**: Mobile-friendly responsive layout
+
+## Backend Implementation Details
+
+### 1. Spring Boot Configuration (PipelineApplication.java)
+```java
+@SpringBootApplication
+@ComponentScan(basePackages = "com.etl.pipeline")
+public class PipelineApplication {
+    // CORS configuration for frontend communication
+    // Component scanning for dependency injection
+    // Main application entry point
+}
+```
+
+### 2. Pipeline Execution Service
+- **Universal Execution Engine**: Handle all node types through single execution service
+- **Data Flow Management**: In-memory data caching between transformation steps
+- **Error Handling**: Comprehensive error handling with detailed logging
+- **SQL Output Implementation**: Support for all database types with auto table creation
+
+### 3. Database Connectivity
+- **Universal JDBC Support**: Single connection handler for all database types
+- **Connection Pooling**: Efficient database connection management
+- **SQL Generation**: Dynamic SQL generation based on database type
+- **Transaction Management**: Proper transaction handling for data integrity
+
+### 4. REST API Endpoints
+```java
+// Pipeline operations
+POST /api/pipeline/execute        - Execute pipeline
+POST /api/pipeline/validate       - Validate pipeline structure
+GET  /api/pipeline/status/{id}     - Get execution status
+
+// File operations
+POST /api/files/upload/csv         - Upload CSV files
+GET  /api/files/list               - List uploaded files
+DELETE /api/files/delete/{name}    - Delete uploaded files
+
+// Database operations
+POST /api/database/test-connection - Test database connections
+
+// DAG operations
+POST /api/dags/save                - Save pipeline configuration
+GET  /api/dags/list                - List saved pipelines
+GET  /api/dags/load/{name}         - Load pipeline configuration
+```
+
+## Frontend Implementation Details
+
+### 1. Main App Component (App.js)
+- **ReactFlow Integration**: Main canvas with node and edge management
+- **State Management**: React hooks for nodes, edges, and selected node state
+- **Event Handlers**: Node clicks, edge connections, and keyboard shortcuts
+- **API Integration**: Pipeline execution and result handling
+
+### 2. Universal Configuration Panel (ConfigPanel.js)
+- **Dynamic Forms**: Database-specific configuration forms
+- **Connection Testing**: Real-time connection validation
+- **Local State Management**: Form state management with useEffect hooks
+- **Error Handling**: User-friendly error messages and validation
+
+### 3. Deletable Edge Components
+- **Custom Edge Types**: Hover-enabled edges with delete functionality
+- **Visual Effects**: Smooth transitions and hover states
+- **Event Handling**: Click handlers for edge deletion
+
+## Database Configuration Examples
+
+### MySQL Configuration
+```javascript
+{
+  databaseType: "mysql",
+  connectionUrl: "jdbc:mysql://localhost:3306/database_name",
+  username: "mysql_user",
+  password: "mysql_password",
+  tableName: "output_table"
+}
+```
+
+### PostgreSQL Configuration
+```javascript
+{
+  databaseType: "postgresql", 
+  connectionUrl: "jdbc:postgresql://localhost:5432/database_name",
+  username: "postgres_user",
+  password: "postgres_password",
+  tableName: "output_table"
+}
+```
+
+### SQLite Configuration
+```javascript
+{
+  databaseType: "sqlite",
+  connectionUrl: "jdbc:sqlite:output/database.db",
+  tableName: "output_table"
+  // No username/password required
+}
+```
+
+## Key Requirements
+
+### Maven Dependencies (pom.xml)
+- Spring Boot starters (web, data-jpa, validation)
+- Database drivers (MySQL, PostgreSQL, SQLite, SQL Server, Oracle)
+- File processing (OpenCSV, Commons CSV, Commons IO)
+- JSON processing (Jackson)
+
+### Frontend Dependencies (package.json)
+- React 18.2.0 and ReactFlow 11.10.1
+- Material-UI 5.14.0 for components
+- Axios for API communication
+- React Dropzone for file uploads
+
+## Data Models
+
+### Pipeline Model
+```java
+public class Pipeline {
+    private String id;
+    private String name;
+    private String description;
+    private List<PipelineNode> nodes;
+    private List<PipelineEdge> edges;
+    private List<String> executionOrder;
+    private Map<String, Object> metadata;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}
+```
+
+### PipelineNode Model
+```java
+public class PipelineNode {
+    private String id;
+    private String type;
+    private Position position;
+    private Map<String, Object> data;
+    
+    public static class Position {
+        private double x;
+        private double y;
+    }
+}
+```
+
+## Implementation Flow
+
+1. **Pipeline Creation**: Drag nodes onto canvas and connect them
+2. **Configuration**: Configure each node through the configuration panel  
+3. **Validation**: Backend validates pipeline structure and configurations
+4. **Execution**: Process nodes in dependency order with in-memory data caching
+5. **Output**: Results written to CSV files or database tables
+6. **Results**: Frontend displays execution results with dismissible notifications
+
+This prompt provides the essential specification for recreating the ETL Framework with universal database support, interactive UI, and comprehensive data transformation capabilities.

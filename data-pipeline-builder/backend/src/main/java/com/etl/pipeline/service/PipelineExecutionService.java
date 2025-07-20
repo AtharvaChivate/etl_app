@@ -15,6 +15,7 @@ import java.nio.file.Paths;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Service
 public class PipelineExecutionService {
@@ -103,6 +104,9 @@ public class PipelineExecutionService {
                 break;
             case "sort":
                 executeSortNode(node, dataCache, pipeline);
+                break;
+            case "join":
+                executeJoinNode(node, dataCache, pipeline);
                 break;
             case "sqlOutput":
                 executeSqlOutputNode(node, dataCache, pipeline);
@@ -214,15 +218,127 @@ public class PipelineExecutionService {
     }
     
     private void executeGroupByNode(PipelineNode node, Map<String, List<Map<String, Object>>> dataCache, Pipeline pipeline) {
-        // Simplified group by implementation
         List<Map<String, Object>> inputData = getInputData(node, dataCache, pipeline);
+        
+        // Get groupBy configuration
+        Map<String, Object> nodeData = node.getData();
+        @SuppressWarnings("unchecked")
+        List<String> groupByColumns = (List<String>) nodeData.get("groupByColumns");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> aggregations = (List<Map<String, Object>>) nodeData.get("aggregations");
+        
+        // Handle legacy parameter name
+        if (groupByColumns == null) {
+            groupByColumns = (List<String>) nodeData.get("groupColumns");
+        }
+        
+        if (groupByColumns == null || groupByColumns.isEmpty()) {
+            logger.warn("No groupBy columns specified, passing through data");
+            dataCache.put(node.getId(), new ArrayList<>(inputData));
+            return;
+        }
+        
+        // Group data by specified columns
+        Map<String, List<Map<String, Object>>> groups = new HashMap<>();
+        
+        for (Map<String, Object> row : inputData) {
+            // Create group key from specified columns
+            StringBuilder keyBuilder = new StringBuilder();
+            for (String column : groupByColumns) {
+                Object value = row.get(column);
+                keyBuilder.append(value != null ? value.toString() : "null").append("|");
+            }
+            String groupKey = keyBuilder.toString();
+            
+            groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(row);
+        }
+        
+        // Apply aggregations to each group
         List<Map<String, Object>> groupedData = new ArrayList<>();
         
-        // For now, just pass through the data (full implementation would require more complex logic)
-        groupedData.addAll(inputData);
+        for (Map.Entry<String, List<Map<String, Object>>> groupEntry : groups.entrySet()) {
+            List<Map<String, Object>> groupRows = groupEntry.getValue();
+            Map<String, Object> aggregatedRow = new HashMap<>();
+            
+            // Add group by columns
+            Map<String, Object> firstRow = groupRows.get(0);
+            for (String column : groupByColumns) {
+                aggregatedRow.put(column, firstRow.get(column));
+            }
+            
+            // Apply aggregations
+            if (aggregations != null) {
+                for (Map<String, Object> aggregation : aggregations) {
+                    String function = (String) aggregation.get("function"); // count, sum, avg, min, max
+                    String column = (String) aggregation.get("column");
+                    String alias = (String) aggregation.get("alias");
+                    
+                    if (alias == null) alias = function + "_" + column;
+                    
+                    Object aggregatedValue = applyAggregation(groupRows, function, column);
+                    aggregatedRow.put(alias, aggregatedValue);
+                }
+            } else {
+                // Default: just count the records in each group
+                aggregatedRow.put("count", groupRows.size());
+            }
+            
+            groupedData.add(aggregatedRow);
+        }
         
         dataCache.put(node.getId(), groupedData);
-        logger.info("Grouped {} records", groupedData.size());
+        logger.info("Grouped {} records into {} groups", inputData.size(), groupedData.size());
+    }
+    
+    private Object applyAggregation(List<Map<String, Object>> groupRows, String function, String column) {
+        switch (function.toLowerCase()) {
+            case "count":
+                return groupRows.size();
+            case "sum":
+                return groupRows.stream()
+                    .mapToDouble(row -> {
+                        Object value = row.get(column);
+                        if (value instanceof Number) {
+                            return ((Number) value).doubleValue();
+                        }
+                        try {
+                            return Double.parseDouble(value.toString());
+                        } catch (NumberFormatException e) {
+                            return 0.0;
+                        }
+                    })
+                    .sum();
+            case "avg":
+                return groupRows.stream()
+                    .mapToDouble(row -> {
+                        Object value = row.get(column);
+                        if (value instanceof Number) {
+                            return ((Number) value).doubleValue();
+                        }
+                        try {
+                            return Double.parseDouble(value.toString());
+                        } catch (NumberFormatException e) {
+                            return 0.0;
+                        }
+                    })
+                    .average()
+                    .orElse(0.0);
+            case "min":
+                return groupRows.stream()
+                    .map(row -> row.get(column))
+                    .filter(Objects::nonNull)
+                    .min((a, b) -> a.toString().compareTo(b.toString()))
+                    .orElse(null);
+            case "max":
+                return groupRows.stream()
+                    .map(row -> row.get(column))
+                    .filter(Objects::nonNull)
+                    .max((a, b) -> a.toString().compareTo(b.toString()))
+                    .orElse(null);
+            default:
+                logger.warn("Unknown aggregation function: {}", function);
+                return null;
+        }
     }
     
     private void executeSortNode(PipelineNode node, Map<String, List<Map<String, Object>>> dataCache, Pipeline pipeline) {
@@ -254,6 +370,201 @@ public class PipelineExecutionService {
         logger.info("Sorted {} records", sortedData.size());
     }
     
+    private void executeJoinNode(PipelineNode node, Map<String, List<Map<String, Object>>> dataCache, Pipeline pipeline) {
+        // Get join configuration
+        Map<String, Object> nodeData = node.getData();
+        String joinType = (String) nodeData.get("joinType"); // "inner", "left", "right", "full"
+        String leftKey = (String) nodeData.get("leftKey");
+        String rightKey = (String) nodeData.get("rightKey");
+        
+        // Handle legacy column names
+        if (leftKey == null) {
+            leftKey = (String) nodeData.get("leftColumn");
+        }
+        if (rightKey == null) {
+            rightKey = (String) nodeData.get("rightColumn");
+        }
+        
+        if (joinType == null) joinType = "inner"; // default to inner join
+        
+        logger.info("Join configuration: joinType={}, leftKey={}, rightKey={}", joinType, leftKey, rightKey);
+        
+        // Get input data from the two connected nodes
+        List<String> inputNodeIds = getInputNodeIds(node, pipeline);
+        if (inputNodeIds.size() != 2) {
+            throw new RuntimeException("Join node must have exactly 2 input connections, but has: " + inputNodeIds.size());
+        }
+        
+        List<Map<String, Object>> leftData = dataCache.get(inputNodeIds.get(0));
+        List<Map<String, Object>> rightData = dataCache.get(inputNodeIds.get(1));
+        
+        if (leftData == null || rightData == null) {
+            throw new RuntimeException("Input data not found for join operation");
+        }
+        
+        if (leftKey == null || rightKey == null) {
+            throw new RuntimeException("Join keys must be specified. leftKey: " + leftKey + ", rightKey: " + rightKey);
+        }
+        
+        logger.info("Left data sample: {}", leftData.isEmpty() ? "empty" : leftData.get(0).keySet());
+        logger.info("Right data sample: {}", rightData.isEmpty() ? "empty" : rightData.get(0).keySet());
+        
+        List<Map<String, Object>> joinedData = performJoin(leftData, rightData, leftKey, rightKey, joinType);
+        
+        dataCache.put(node.getId(), joinedData);
+        logger.info("Joined {} + {} records -> {} records using {} join", 
+                   leftData.size(), rightData.size(), joinedData.size(), joinType);
+    }
+    
+    private List<Map<String, Object>> performJoin(List<Map<String, Object>> leftData, 
+                                                  List<Map<String, Object>> rightData,
+                                                  String leftKey, String rightKey, String joinType) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        switch (joinType.toLowerCase()) {
+            case "inner":
+                return performInnerJoin(leftData, rightData, leftKey, rightKey);
+            case "left":
+                return performLeftJoin(leftData, rightData, leftKey, rightKey);
+            case "right":
+                return performRightJoin(leftData, rightData, leftKey, rightKey);
+            case "full":
+                return performFullJoin(leftData, rightData, leftKey, rightKey);
+            default:
+                logger.warn("Unknown join type: {}, defaulting to inner join", joinType);
+                return performInnerJoin(leftData, rightData, leftKey, rightKey);
+        }
+    }
+    
+    private List<Map<String, Object>> performInnerJoin(List<Map<String, Object>> leftData,
+                                                       List<Map<String, Object>> rightData,
+                                                       String leftKey, String rightKey) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        for (Map<String, Object> leftRow : leftData) {
+            Object leftValue = leftRow.get(leftKey);
+            if (leftValue == null) continue;
+            
+            for (Map<String, Object> rightRow : rightData) {
+                Object rightValue = rightRow.get(rightKey);
+                if (rightValue != null && leftValue.toString().equals(rightValue.toString())) {
+                    Map<String, Object> joinedRow = new HashMap<>(leftRow);
+                    // Add right row data with prefix to avoid column name conflicts
+                    for (Map.Entry<String, Object> entry : rightRow.entrySet()) {
+                        String key = entry.getKey();
+                        if (!joinedRow.containsKey(key)) {
+                            joinedRow.put(key, entry.getValue());
+                        } else {
+                            joinedRow.put("right_" + key, entry.getValue());
+                        }
+                    }
+                    result.add(joinedRow);
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    private List<Map<String, Object>> performLeftJoin(List<Map<String, Object>> leftData,
+                                                      List<Map<String, Object>> rightData,
+                                                      String leftKey, String rightKey) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        for (Map<String, Object> leftRow : leftData) {
+            Object leftValue = leftRow.get(leftKey);
+            boolean foundMatch = false;
+            
+            if (leftValue != null) {
+                for (Map<String, Object> rightRow : rightData) {
+                    Object rightValue = rightRow.get(rightKey);
+                    if (rightValue != null && leftValue.toString().equals(rightValue.toString())) {
+                        Map<String, Object> joinedRow = new HashMap<>(leftRow);
+                        for (Map.Entry<String, Object> entry : rightRow.entrySet()) {
+                            String key = entry.getKey();
+                            if (!joinedRow.containsKey(key)) {
+                                joinedRow.put(key, entry.getValue());
+                            } else {
+                                joinedRow.put("right_" + key, entry.getValue());
+                            }
+                        }
+                        result.add(joinedRow);
+                        foundMatch = true;
+                    }
+                }
+            }
+            
+            // If no match found, add left row with null values for right columns
+            if (!foundMatch) {
+                Map<String, Object> joinedRow = new HashMap<>(leftRow);
+                // Add null values for right table columns
+                if (!rightData.isEmpty()) {
+                    Map<String, Object> sampleRightRow = rightData.get(0);
+                    for (String key : sampleRightRow.keySet()) {
+                        if (!joinedRow.containsKey(key)) {
+                            joinedRow.put(key, null);
+                        } else {
+                            joinedRow.put("right_" + key, null);
+                        }
+                    }
+                }
+                result.add(joinedRow);
+            }
+        }
+        
+        return result;
+    }
+    
+    private List<Map<String, Object>> performRightJoin(List<Map<String, Object>> leftData,
+                                                       List<Map<String, Object>> rightData,
+                                                       String leftKey, String rightKey) {
+        // Right join is just a left join with tables swapped
+        return performLeftJoin(rightData, leftData, rightKey, leftKey);
+    }
+    
+    private List<Map<String, Object>> performFullJoin(List<Map<String, Object>> leftData,
+                                                      List<Map<String, Object>> rightData,
+                                                      String leftKey, String rightKey) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        Set<String> rightMatchedKeys = new HashSet<>();
+        
+        // First, perform left join
+        result.addAll(performLeftJoin(leftData, rightData, leftKey, rightKey));
+        
+        // Track which right rows were matched
+        for (Map<String, Object> leftRow : leftData) {
+            Object leftValue = leftRow.get(leftKey);
+            if (leftValue != null) {
+                for (Map<String, Object> rightRow : rightData) {
+                    Object rightValue = rightRow.get(rightKey);
+                    if (rightValue != null && leftValue.toString().equals(rightValue.toString())) {
+                        rightMatchedKeys.add(rightValue.toString());
+                    }
+                }
+            }
+        }
+        
+        // Add unmatched right rows
+        for (Map<String, Object> rightRow : rightData) {
+            Object rightValue = rightRow.get(rightKey);
+            if (rightValue != null && !rightMatchedKeys.contains(rightValue.toString())) {
+                Map<String, Object> joinedRow = new HashMap<>(rightRow);
+                // Add null values for left table columns
+                if (!leftData.isEmpty()) {
+                    Map<String, Object> sampleLeftRow = leftData.get(0);
+                    for (String key : sampleLeftRow.keySet()) {
+                        if (!joinedRow.containsKey(key)) {
+                            joinedRow.put(key, null);
+                        }
+                    }
+                }
+                result.add(joinedRow);
+            }
+        }
+        
+        return result;
+    }
+
     private void executeSqlOutputNode(PipelineNode node, Map<String, List<Map<String, Object>>> dataCache, Pipeline pipeline) {
         try {
             List<Map<String, Object>> inputData = getInputData(node, dataCache, pipeline);
@@ -744,6 +1055,14 @@ public class PipelineExecutionService {
         return new ArrayList<>();
     }
     
+    private List<String> getInputNodeIds(PipelineNode node, Pipeline pipeline) {
+        // Find all source nodes for this node (needed for join operations)
+        return pipeline.getEdges().stream()
+                .filter(edge -> edge.getTarget().equals(node.getId()))
+                .map(edge -> edge.getSource())
+                .collect(Collectors.toList());
+    }
+    
     private String findSourceNode(String nodeId, Pipeline pipeline) {
         return pipeline.getEdges().stream()
                 .filter(edge -> edge.getTarget().equals(nodeId))
@@ -769,6 +1088,9 @@ public class PipelineExecutionService {
                 visitNode(node.getId(), pipeline, visited, order);
             }
         }
+        
+        // Reverse the order to get correct execution sequence (sources first, outputs last)
+        Collections.reverse(order);
         
         return order;
     }
