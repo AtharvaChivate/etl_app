@@ -235,6 +235,71 @@ const DagManager = ({
     }
   };
 
+  const handleExportDatabricks = async () => {
+    if (!dagName.trim()) {
+      alert('Please enter a DAG name');
+      return;
+    }
+
+    if (nodes.length === 0) {
+      alert('Cannot export an empty DAG. Please add some nodes first.');
+      return;
+    }
+
+    setLoading(true);
+    
+    const dagData = {
+      name: dagName,
+      description: dagDescription,
+      nodes: nodes,
+      edges: edges,
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      version: "1.0"
+    };
+
+    try {
+      const response = await fetch('http://localhost:8080/api/dags/export-databricks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dagData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${response.statusText}. ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Download the Databricks metadata as JSON file
+        const metadataJson = JSON.stringify(result.metadata, null, 2);
+        const blob = new Blob([metadataJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${dagName}_databricks.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        alert(`✅ Databricks metadata exported successfully as: ${dagName}_databricks.json`);
+      } else {
+        throw new Error(result.error || 'Unknown error occurred while exporting Databricks metadata');
+      }
+    } catch (error) {
+      console.error('Error exporting Databricks metadata:', error);
+      alert(`❌ Failed to export Databricks metadata: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'Unknown';
     try {
@@ -318,6 +383,15 @@ const DagManager = ({
                 style={{marginLeft: '10px', backgroundColor: '#28a745'}}
               >
                 {loading ? '📤 Exporting...' : '📤 Export Metadata'}
+              </button>
+              
+              <button 
+                className="databricks-btn"
+                onClick={handleExportDatabricks}
+                disabled={loading || !dagName.trim()}
+                style={{marginLeft: '10px', backgroundColor: '#ff6b00'}}
+              >
+                {loading ? '🔥 Exporting...' : '🔥 Export for Databricks'}
               </button>
             </div>
           )}

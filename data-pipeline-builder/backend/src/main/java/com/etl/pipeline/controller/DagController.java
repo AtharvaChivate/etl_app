@@ -1,8 +1,10 @@
 package com.etl.pipeline.controller;
 
+import com.etl.pipeline.service.DatabricksMetadataTransformationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,6 +32,9 @@ public class DagController {
     private static final Logger logger = LoggerFactory.getLogger(DagController.class);
     private static final String DAG_DIR = "saved-dags/";
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    @Autowired
+    private DatabricksMetadataTransformationService databricksTransformationService;
     
     @PostMapping("/save")
     public ResponseEntity<?> saveDag(@RequestBody Map<String, Object> dagData) {
@@ -249,51 +254,15 @@ public class DagController {
         try {
             logger.info("Exporting DAG metadata for: {}", dagData.get("name"));
             
-            // Create metadata-only structure
-            Map<String, Object> metadata = new HashMap<>();
-            
-            // Basic DAG information
-            metadata.put("name", dagData.get("name"));
-            metadata.put("description", dagData.get("description"));
-            metadata.put("version", dagData.get("version"));
-            
-            // Process nodes - remove UI-specific data
-            List<Map<String, Object>> cleanNodes = new ArrayList<>();
-            List<?> rawNodes = (List<?>) dagData.get("nodes");
-            if (rawNodes != null) {
-                for (Object nodeObj : rawNodes) {
-                    Map<String, Object> node = (Map<String, Object>) nodeObj;
-                    Map<String, Object> cleanNode = new HashMap<>();
-                    
-                    // Keep only essential node data
-                    cleanNode.put("id", node.get("id"));
-                    cleanNode.put("type", node.get("type"));
-                    cleanNode.put("data", node.get("data"));
-                    
-                    cleanNodes.add(cleanNode);
-                }
-            }
-            metadata.put("nodes", cleanNodes);
-            
-            // Process edges - keep as is (minimal data already)
-            metadata.put("edges", dagData.get("edges"));
-            
-            // Add execution order if present
-            metadata.put("executionOrder", dagData.get("executionOrder"));
-            
-            // Add metadata summary
-            Map<String, Object> summary = new HashMap<>();
-            summary.put("nodeCount", cleanNodes.size());
-            summary.put("edgeCount", dagData.get("edges") != null ? ((List<?>) dagData.get("edges")).size() : 0);
-            summary.put("created", Instant.now().toString());
-            metadata.put("metadata", summary);
+            // Transform to Databricks format
+            Map<String, Object> databricksMetadata = databricksTransformationService.transformToDatabricksFormat(dagData);
             
             logger.info("DAG metadata exported successfully for: {}", dagData.get("name"));
             
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "DAG metadata exported successfully", 
-                "metadata", metadata
+                "metadata", databricksMetadata
             ));
             
         } catch (Exception e) {
@@ -302,6 +271,32 @@ public class DagController {
                 .body(Map.of(
                     "success", false,
                     "error", "Failed to export DAG metadata: " + e.getMessage()
+                ));
+        }
+    }
+    
+    @PostMapping("/export-databricks")
+    public ResponseEntity<?> exportDatabricksMetadata(@RequestBody Map<String, Object> dagData) {
+        try {
+            logger.info("Exporting Databricks metadata for: {}", dagData.get("name"));
+            
+            // Transform to Databricks format
+            Map<String, Object> databricksMetadata = databricksTransformationService.transformToDatabricksFormat(dagData);
+            
+            logger.info("Databricks metadata exported successfully for: {}", dagData.get("name"));
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Databricks metadata exported successfully", 
+                "metadata", databricksMetadata
+            ));
+            
+        } catch (Exception e) {
+            logger.error("Error exporting Databricks metadata", e);
+            return ResponseEntity.internalServerError()
+                .body(Map.of(
+                    "success", false,
+                    "error", "Failed to export Databricks metadata: " + e.getMessage()
                 ));
         }
     }
